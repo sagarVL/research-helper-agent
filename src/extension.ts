@@ -42,20 +42,25 @@ export function activate(context: vscode.ExtensionContext) {
     }
 
     // Visible-only diagnostics (gentle + non-intrusive)
-    const visible = editor.visibleRanges?.[0];
-    const start = visible ? visible.start.line : 0;
-    const end = visible ? visible.end.line : Math.min(doc.lineCount - 1, 200);
+    const allClaims: ReturnType<typeof detectClaims> = [];
 
-    const lines: string[] = [];
-    for (let i = start; i <= end; i++) lines.push(doc.lineAt(i).text);
+    for (const vr of editor.visibleRanges) {
+      const start = vr.start.line;
+      const end = vr.end.line;
 
-    const claims = detectClaims(lines).map((c) => ({
-      ...c,
-      startLine: c.startLine + start,
-      endLine: c.endLine + start
-    }));
+      const lines: string[] = [];
+      for (let i = start; i <= end; i++) lines.push(doc.lineAt(i).text);
 
-    diags.apply(doc, claims);
+      const claims = detectClaims(lines).map((c) => ({
+        ...c,
+        startLine: c.startLine + start,
+        endLine: c.endLine + start
+      }));
+
+      allClaims.push(...claims);
+    }
+
+    diags.apply(doc, allClaims);
   }
 
   // Refresh triggers
