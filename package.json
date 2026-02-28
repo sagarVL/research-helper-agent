@@ -23,6 +23,31 @@
       {
         "command": "researchAssistant.toggleDiagnostics",
         "title": "Research Assistant: Toggle Diagnostics"
+      },
+      {
+        "command": "researchAssistant.suggestCitationQuery",
+        "title": "Research Assistant: Suggest citation search query"
+      },
+      {
+        "command": "researchAssistant.insertCitationPlaceholder",
+        "title": "Research Assistant: Insert citation placeholder"
+      },
+      {
+        "command": "researchAssistant.rewriteHedged",
+        "title": "Research Assistant: Rewrite more cautiously"
+    }
+    ],
+    "languages": [
+      { "id": "markdown" },
+      { "id": "latex" },
+      { "id": "python" },
+      { "id": "cpp" }
+    ],
+    "codeActions": [
+      {
+        "language": "markdown",
+        "kind": "quickfix",
+        "title": "Research Assistant"
       }
     ],
     "viewsContainers": {
