@@ -30,11 +30,23 @@ class CiteCodeActionProvider implements vscode.CodeActionProvider {
         const line = diagnostic.range.start.line;
         const lineText = document.lineAt(line);
 
-        edit.insert(
-          document.uri,
-          new vscode.Position(line, lineText.text.length),
-          " \\cite{TODO}"
-        );
+       const text = lineText.text;
+
+        // Capture trailing punctuation group (.,;:!?) possibly with whitespace
+        const m = text.match(/([.,;:!?]+)\s*$/);
+
+        let insertPosition: vscode.Position;
+        let insertText = " \\cite{TODO}";
+
+        if (m && typeof m.index === "number") {
+          // Insert BEFORE the punctuation group, do NOT duplicate punctuation
+          insertPosition = new vscode.Position(line, m.index);
+        } else {
+          // No trailing punctuation -> append
+          insertPosition = new vscode.Position(line, text.length);
+        }
+
+        edit.insert(document.uri, insertPosition, insertText);
 
         action.edit = edit;
         actions.push(action);

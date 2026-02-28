@@ -12,7 +12,7 @@ export interface ClaimItem {
 const ABSOLUTES = /\b(always|never|guarantee|proves?|certainly|must|impossible)\b/i;
 const CAUSAL = /\b(causes?|leads to|results in|therefore|thus|hence)\b/i;
 const NUMERIC =
-  /(?:^|[^\w])(\d+(\.\d+)?%|\bp\s*<\s*0\.\d+|\b\d+(\.\d+)?x\b|\b\d+(\.\d+)?\s*(ms|s|kg|g|mm|cm|m|nm|μm|hz|khz|mhz|ghz))(?=$|[\s,.;:)\]\}])/i;
+  /(?:^|[^\w])(\d+(\.\d+)?%|\bp\s*<\s*0\.\d+|\b\d+(\.\d+)?x\b|\b\d+(\.\d+)?\s*(ms|s|kg|g|mm|cm|m|nm|μm|hz|khz|mhz|ghz))(?=$|[\s,.;:!?()\]\}])/i;
 const DERIVATION = /\b(deriv(e|ation)|we show|we prove|it follows|by induction)\b/i;
 
 // Already-supported citations (don't nag if present)
