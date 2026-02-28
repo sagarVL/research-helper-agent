@@ -1,0 +1,80 @@
+{
+  "name": "research-helper-agent",
+  "displayName": "Research Assistant",
+  "description": "Quiet, opt-in research assistant for claims, citations, and verification.",
+  "version": "0.0.1",
+  "publisher": "sagarvl",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": [
+    "onView:researchAssistant.sidebarView",
+    "onCommand:researchAssistant.analyzeVisible",
+    "onCommand:researchAssistant.toggleDiagnostics"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "researchAssistant.analyzeVisible",
+        "title": "Research Assistant: Analyze Visible Text"
+      },
+      {
+        "command": "researchAssistant.toggleDiagnostics",
+        "title": "Research Assistant: Toggle Diagnostics"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "researchAssistant",
+          "title": "Research Assistant",
+          "icon": "media/ra-icon.svg"
+        }
+      ]
+    },
+    "views": {
+  "researchAssistant": [
+    {
+      "type": "webview",
+      "id": "researchAssistant.sidebarView",
+      "name": "Suggestions"
+    }
+  ]
+},
+    "configuration": {
+      "title": "Research Assistant",
+      "properties": {
+        "researchAssistant.enableDiagnostics": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show squiggle diagnostics for detected claims (gentle, non-blocking)."
+        },
+        "researchAssistant.analysisMode": {
+          "type": "string",
+          "enum": ["visibleOnly", "fullDocument"],
+          "default": "visibleOnly",
+          "description": "What part of the document to analyze."
+        },
+        "researchAssistant.domain": {
+          "type": "string",
+          "enum": ["robotics", "ai", "pharma", "general"],
+          "default": "robotics",
+          "description": "Domain preset for the analyzer."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "tsc -p .",
+    "watch": "tsc -watch -p ."
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.30",
+    "@types/vscode": "^1.85.0",
+    "@vscode/test-electron": "^2.4.1",
+    "typescript": "^5.4.0"
+  }
+}
