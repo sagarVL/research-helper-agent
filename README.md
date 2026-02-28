@@ -1,289 +1,243 @@
-Research Assistant
+# Research Assistant
 
 A quiet, opt-in VS Code extension for research writing.
 
 Research Assistant detects unsupported claims, highlights reasoning issues, and provides actionable quick fixes — without intrusive autocomplete or constant interruptions.
 
 Designed for research workflows in:
+- Robotics
+- AI / Machine Learning
+- Scientific & Technical Writing (LaTeX / Markdown)
 
-Robotics
+---
 
-AI / Machine Learning
+## Philosophy
 
-Scientific & Technical Writing (LaTeX / Markdown)
+This extension is intentionally non-intrusive:
+- No inline ghost text
+- No automatic rewrites
+- No constant popups
+- No background indexing
+- No forced suggestions
 
-Philosophy
+You choose when to analyze. You choose when to act.
 
-This extension is intentionally non-intrusive.
+---
 
-No inline ghost text
+## Current Features
 
-No automatic rewrites
+### 1) Sidebar: Research Assistant
+- Activity Bar icon
+- Webview panel
+- Manual **Analyze visible** button
+- Lists detected issues with:
+  - Line number
+  - Confidence score
+  - Issue type
+- Click to jump to location
+- Analyzes the **visible region** by default
 
-No constant popups
-
-No background indexing
-
-No forced suggestions
-
-You choose when to analyze.
-You choose when to act.
-
-Current Features
-1. Sidebar: Research Assistant
-
-Activity Bar icon
-
-Webview panel
-
-Manual “Analyze visible” button
-
-Lists detected issues with:
-
-Line number
-
-Confidence score
-
-Issue type
-
-Click to jump to location
-
-Only analyzes the visible region by default.
-
-2. Heuristic Claim Detection
-
+### 2) Heuristic Claim Detection
 Detects:
 
-Numeric / Statistical Claims
+**Numeric / Statistical Claims**
+- `20%`
+- `p < 0.05`
+- `10 ms`
+- `3x improvement`
 
-20%
+Handles punctuation correctly:
+- `20%.`
+- `20%!`
+- `20%?`
 
-p < 0.05
+**Absolute Language**
+- always
+- never
+- proves
+- guarantees
+- certainly
 
-10 ms
+**Causal Language**
+- therefore
+- thus
+- leads to
+- results in
 
-3x improvement
+**Derivation / Proof Language**
+- we prove
+- derivation
+- it follows
+- by induction
 
-Correctly handles punctuation:
-
-20%.
-
-20%!
-
-20%?
-
-Absolute Language
-
-always
-
-never
-
-proves
-
-guarantees
-
-certainly
-
-Causal Language
-
-therefore
-
-thus
-
-leads to
-
-results in
-
-Derivation / Proof Language
-
-we prove
-
-derivation
-
-it follows
-
-by induction
-
-3. LaTeX-Aware Detection
-
-Avoids false positives in .tex files:
-
-Skips lines containing:
-
-\cite{}
-
-\citet{}
-
-\citep{}
-
-Recognizes existing citations
-
-Inserts new citations correctly before punctuation
+### 3) LaTeX-Aware Detection
+Avoids false positives in `.tex` files:
+- Skips lines containing citations:
+  - `\cite{}`
+  - `\citet{}`
+  - `\citep{}`
+- Inserts new citations correctly **before trailing punctuation**
 
 Example:
-
+```tex
 This improves accuracy by 20%.
 
 Quick Fix → becomes:
 
+```tex
 This improves accuracy by 20% \cite{TODO}.
+```
 
-No duplicate punctuation.
+### 4) Optional Diagnostics (Squiggles)
 
-4. Optional Diagnostics (Squiggles)
+Diagnostics can be toggled via:
 
-Toggle via:
-
-Research Assistant: Toggle Diagnostics
+**Research Assistant: Toggle Diagnostics**
 
 When enabled:
 
-Gentle squiggles under flagged lines
+- Gentle squiggles appear under flagged claims  
+- Integrated with the VS Code Problems panel  
+- Still analyzes only the visible region  
+- Disabled by default  
 
-Integrated with VS Code Problems panel
+---
 
-Still only analyzes visible region
-
-Disabled by default (non-intrusive)
-
-5. Quick Fix: Insert Citation
+### 5. Quick Fix: Insert Citation
 
 When a claim is flagged:
 
 Press:
 
-Ctrl + .
+`Ctrl + .`
 
 Available action:
 
-Add \cite{TODO}
+`Add \cite{TODO}`
 
-Smart insertion behavior:
+Smart insertion logic:
 
-20%. → 20% \cite{TODO}.
+- `20%.` → `20% \cite{TODO}.`
+- `20%!` → `20% \cite{TODO}!`
+- `20%` → `20% \cite{TODO}`
 
-20%! → 20% \cite{TODO}!
+---
 
-20% → 20% \cite{TODO}
+### 6. Quick Fix: Rewrite More Cautiously
 
-6. Quick Fix: Rewrite More Cautiously
+Provides hedged alternatives for strong claims.
 
-Transforms strong claims into hedged versions:
+Examples:
 
-always → often
+- always → often  
+- never → rarely  
+- proves → suggests  
+- guarantees → may indicate  
 
-never → rarely
+User can choose to:
 
-proves → suggests
+- Replace inline  
+- Copy to clipboard  
 
-guarantee → may indicate
+---
 
-User chooses:
-
-Replace in place
-
-Copy to clipboard
-
-7. Citation Search Query
+### 7. Citation Search Query
 
 Generates a cleaned search query from the flagged sentence and copies it to clipboard.
 
 Useful for:
 
-Google Scholar
+- Google Scholar  
+- Semantic Scholar  
+- arXiv  
+- IEEE Xplore  
 
-Semantic Scholar
+---
 
-arXiv
+## Supported File Types
 
-IEEE Xplore
+- Markdown (`.md`)
+- LaTeX (`.tex`)
+- Python (basic heuristic support)
+- C++ (basic heuristic support)
 
-Supported File Types
+---
 
-Markdown (.md)
+## How It Works
 
-LaTeX (.tex)
+1. Analyze visible editor region  
+2. Run heuristic claim detection  
+3. Generate diagnostics  
+4. Provide Code Actions via VS Code lightbulb  
+5. Let the user choose actions  
 
-Python (basic heuristic support)
-
-C++ (basic heuristic support)
-
-How It Works
-
-Analyze visible editor region
-
-Run heuristic claim detection
-
-Generate diagnostics
-
-Provide Code Actions via lightbulb
-
-Allow user-controlled fixes
-
-No document content is sent anywhere.
-No remote services are used (current version).
+No document content is sent anywhere.  
+No remote services are used (current version).  
 Fully local.
 
-Installation (Development Mode)
+---
 
-Clone the repository
+## Installation (Development Mode)
+
+Clone the repository:
+
+```bash
+git clone <repository-url>
+cd research-helper-agent
+```
 
 Install dependencies:
 
+```bash
 npm install
+```
 
-Build:
+Build the extension:
 
+```bash
 npm run build
+```
 
-Press F5 in VS Code
-This launches the Extension Development Host.
+Launch Extension Development Host:
 
-Configuration
+Open the project in VS Code
+
+Press F5
+
+---
+
+## Configuration
 
 Available settings:
 
-researchAssistant.enableDiagnostics
-
-researchAssistant.analysisMode
-
-researchAssistant.domain (scaffolded for future expansion)
+- `researchAssistant.enableDiagnostics`
+- `researchAssistant.analysisMode`
+- `researchAssistant.domain` (reserved for future domain-specific modes)
 
 Diagnostics are disabled by default.
 
-Roadmap
+---
+
+## Roadmap
 
 Planned improvements:
 
-Domain-specific modes:
+- Domain-specific detection modes (Robotics / AI / Pharma)
+- Smarter citation query generation
+- Section-aware detection (e.g., Related Work)
+- Mathematical derivation consistency checks
+- Optional LLM-backed reasoning validation
+- Claim clustering and grouping
 
-Robotics
+---
 
-AI / ML
-
-Pharma
-
-Smarter citation query generation
-
-Section-aware detection (e.g., Related Work)
-
-Math / derivation consistency checks
-
-LLM-backed reasoning validation (optional online mode)
-
-Claim clustering and grouping
-
-Why This Exists
+## Why This Exists
 
 Research writing often contains:
 
-Implicit assumptions
+- Implicit assumptions
+- Overstated claims
+- Missing citations
+- Weakly supported reasoning
 
-Overstated claims
-
-Missing citations
-
-Weakly supported reasoning
-
-This extension acts as a quiet second reader —
-not a writer, not an autocomplete engine.
+This extension acts as a structured second reader — not a writer
