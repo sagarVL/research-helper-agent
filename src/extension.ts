@@ -4,12 +4,63 @@ import { DiagnosticsManager } from "./diagnostics/DiagnosticsManager";
 import { detectClaims } from "./analysis/ClaimDetector";
 import { ResearchCodeActionProvider } from "./codeActions/ResearchCodeActionProvider";
 
+class CiteCodeActionProvider implements vscode.CodeActionProvider {
+  provideCodeActions(
+    document: vscode.TextDocument,
+    range: vscode.Range,
+    context: vscode.CodeActionContext
+  ): vscode.CodeAction[] {
+    const actions: vscode.CodeAction[] = [];
+
+    for (const diagnostic of context.diagnostics) {
+      if (
+        diagnostic.source === "Research Assistant" &&
+        diagnostic.message.toLowerCase().includes("cite")
+      ) {
+        const action = new vscode.CodeAction(
+          "Add \\cite{TODO}",
+          vscode.CodeActionKind.QuickFix
+        );
+
+        action.diagnostics = [diagnostic];
+        action.isPreferred = true;
+
+        const edit = new vscode.WorkspaceEdit();
+
+        const line = diagnostic.range.start.line;
+        const lineText = document.lineAt(line);
+
+        edit.insert(
+          document.uri,
+          new vscode.Position(line, lineText.text.length),
+          " \\cite{TODO}"
+        );
+
+        action.edit = edit;
+        actions.push(action);
+      }
+    }
+
+    return actions;
+  }
+}
+
 export function activate(context: vscode.ExtensionContext) {
   console.log("[Research Assistant] activated");
 
   const sidebar = new SidebarProvider(context);
   const diags = new DiagnosticsManager();
   context.subscriptions.push(diags);
+
+  context.subscriptions.push(
+  vscode.languages.registerCodeActionsProvider(
+    ["markdown", "latex"],
+    new CiteCodeActionProvider(),
+    {
+      providedCodeActionKinds: [vscode.CodeActionKind.QuickFix]
+    }
+  )
+);
 
   // Register the sidebar webview
   context.subscriptions.push(
