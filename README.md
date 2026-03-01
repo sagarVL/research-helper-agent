@@ -1,8 +1,8 @@
 # Research Assistant
 
-A quiet, opt-in VS Code extension for research writing.
+A quiet, opt-in VS Code extension for research writing and verification.
 
-Research Assistant detects unsupported claims, highlights reasoning issues, and provides actionable quick fixes — without intrusive autocomplete or constant interruptions.
+Research Assistant detects unsupported claims, highlights reasoning issues, provides actionable quick fixes, and integrates LLM-powered verification — without intrusive autocomplete or constant interruptions.
 
 Designed for research workflows in:
 - Robotics
@@ -101,56 +101,76 @@ When enabled:
 - Still analyzes only the visible region  
 - Disabled by default  
 
----
+### 5) Domain-Specific Analysis
 
-### 5. Quick Fix: Insert Citation
+Set domain via **Research Assistant: Select Domain**:
+- `robotics` (default)
+- `ai`
+- `general`
+
+Enables context-aware claim detection based on your research area.
+
+### 6) LLM-Powered Verification (@assistant Q&A)
+
+Integrated LLM support for claim verification and reasoning analysis.
+
+**Supported Providers:**
+- OpenAI (default: `gpt-4o-mini`)
+- Google Gemini (default: `gemini-2.0-flash`)
+
+**Usage:**
+1. Set API key: **Research Assistant: Set OpenAI API Key** or **Set Gemini API Key**
+2. Select provider: **Research Assistant: Select LLM Provider**
+3. Use `@assistant` prefix in analysis queries
+
+**Features:**
+- Verifies claim plausibility
+- Analyzes reasoning chains
+- Suggests improvements to causal claims
+- Generates refined citation queries
+
+### 7) Quick Fix: Insert Citation
 
 When a claim is flagged:
 
-Press:
+Press: `Ctrl + .`
 
-`Ctrl + .`
-
-Available action:
-
-`Add \cite{TODO}`
+Available action: `Add \cite{TODO}`
 
 Smart insertion logic:
-
 - `20%.` → `20% \cite{TODO}.`
 - `20%!` → `20% \cite{TODO}!`
 - `20%` → `20% \cite{TODO}`
 
----
-
-### 6. Quick Fix: Rewrite More Cautiously
+### 8) Quick Fix: Rewrite More Cautiously
 
 Provides hedged alternatives for strong claims.
 
 Examples:
-
 - always → often  
 - never → rarely  
 - proves → suggests  
 - guarantees → may indicate  
 
 User can choose to:
-
 - Replace inline  
 - Copy to clipboard  
 
----
-
-### 7. Citation Search Query
+### 9) Citation Search Query
 
 Generates a cleaned search query from the flagged sentence and copies it to clipboard.
 
 Useful for:
-
 - Google Scholar  
 - Semantic Scholar  
 - arXiv  
 - IEEE Xplore  
+
+### 10) Proto File Generation
+
+Generate prototype code for claims with **@assistant proto**:
+- Generates proof-of-concept implementations
+- Optionally writes to workspace (toggle via **Research Assistant: Toggle Proto File Writing**)
 
 ---
 
@@ -179,65 +199,100 @@ Fully local.
 
 ## Installation (Development Mode)
 
-Clone the repository:
+### Prerequisites
+- Node.js 16+ and npm
+- VS Code 1.85.0+
 
+### Steps
+
+1. Clone the repository:
 ```bash
 git clone <repository-url>
 cd research-helper-agent
 ```
 
-Install dependencies:
-
+2. Install dependencies:
 ```bash
 npm install
 ```
 
-Build the extension:
-
+3. Build the extension:
 ```bash
 npm run build
 ```
 
-Launch Extension Development Host:
+4. Launch the Extension Development Host:
+   - Open the project in VS Code
+   - Press `F5` to start debugging
+   - A new VS Code window opens with the extension enabled
 
-Open the project in VS Code
+### Development
 
-Press F5
+Watch mode (auto-rebuild on changes):
+```bash
+npm run watch
+```
+
+Then press `F5` to launch/reload the extension.
 
 ---
 
 ## Configuration
 
-Available settings:
+Available settings (VS Code `settings.json`):
 
-- `researchAssistant.enableDiagnostics`
-- `researchAssistant.analysisMode`
-- `researchAssistant.domain` (reserved for future domain-specific modes)
+```json
+{
+  "researchAssistant.enableDiagnostics": false,
+  "researchAssistant.analysisMode": "visibleOnly",
+  "researchAssistant.domain": "robotics",
+  "researchAssistant.provider": "openai",
+  "researchAssistant.openaiModel": "gpt-4o-mini",
+  "researchAssistant.geminiModel": "gemini-2.0-flash",
+  "researchAssistant.protoWriteFiles": false
+}
+```
 
-Diagnostics are disabled by default.
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `enableDiagnostics` | boolean | `false` | Show squiggle diagnostics for detected claims |
+| `analysisMode` | string | `visibleOnly` | Analyze visible region only or full document |
+| `domain` | string | `robotics` | Domain preset: `robotics`, `ai`, or `general` |
+| `provider` | string | `openai` | LLM provider: `openai` or `gemini` |
+| `openaiModel` | string | `gpt-4o-mini` | OpenAI model for LLM queries |
+| `geminiModel` | string | `gemini-2.0-flash` | Google Gemini model for LLM queries |
+| `protoWriteFiles` | boolean | `false` | Write generated prototypes to disk |
+
+---
+
+## Tech Stack
+
+- **Framework**: VS Code Extension API
+- **Language**: TypeScript
+- **Build Tool**: TypeScript Compiler (tsc)
+- **LLM Support**: OpenAI & Google Gemini APIs
+- **UI**: VS Code Webview for sidebar
 
 ---
 
 ## Roadmap
 
-Planned improvements:
-
-- Domain-specific detection modes (Robotics / AI / Pharma)
-- Smarter citation query generation
-- Section-aware detection (e.g., Related Work)
-- Mathematical derivation consistency checks
-- Optional LLM-backed reasoning validation
-- Claim clustering and grouping
+Implemented:
+- ✅ Heuristic claim detection
+- ✅ Domain-specific analysis modes
+- ✅ LLM-powered verification (@assistant)
+- ✅ Prototype generation
 
 ---
 
 ## Why This Exists
 
 Research writing often contains:
+- Implicit assumptions without support
+- Overstated claims lacking evidence
+- Missing or incorrect citations
+- Weakly supported reasoning chains
 
-- Implicit assumptions
-- Overstated claims
-- Missing citations
-- Weakly supported reasoning
+This extension acts as a structured second reader — detecting, flagging, and helping improve claims and reasoning directly in your editor, without leaving your workflow.
 
-This extension acts as a structured second reader — not a writer
+---
