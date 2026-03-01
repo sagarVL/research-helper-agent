@@ -4,9 +4,14 @@ import { DiagnosticsManager } from "./diagnostics/DiagnosticsManager";
 import { detectClaims } from "./analysis/ClaimDetector";
 import { ResearchCodeActionProvider } from "./codeActions/ResearchCodeActionProvider";
 
-const ASSISTANT_TRIGGER = /^@assistant\s+(.+\?)\s*$/i;
+const ASSISTANT_TRIGGER = /@assistant\s+(.+\?)\s*$/i;
+const ASSISTANT_PROTO_TRIGGER = /@assistant\s+proto\s+(python|cpp)\s*:\s*(.+\?)\s*$/i;
 let lastHandledSignature: string | null = null;
 let debounceTimer: NodeJS.Timeout | null = null;
+
+// store these at module scope so helper routines outside `activate` can access them
+let extensionContext: vscode.ExtensionContext | null = null;
+let sidebarInstance: SidebarProvider | null = null;
 
 
 
@@ -70,6 +75,8 @@ export function activate(context: vscode.ExtensionContext) {
   console.log("[Research Assistant] activated");
 
   const sidebar = new SidebarProvider(context);
+  sidebarInstance = sidebar;
+  extensionContext = context;
   const diags = new DiagnosticsManager();
   context.subscriptions.push(diags);
 
@@ -167,42 +174,76 @@ context.subscriptions.push(
   })
 );
 
-  async function handleAssistantTrigger(
-  doc: vscode.TextDocument,
-  lineNumber: number,
-  text: string) {
-    const match = text.match(ASSISTANT_TRIGGER);
-    if (!match) return;
+ async function handleAssistantTrigger(doc: vscode.TextDocument, lineNumber: number, text: string) {
+  const proto = text.match(ASSISTANT_PROTO_TRIGGER);
+if (proto) {
+  const lang = proto[1].toLowerCase() as "python" | "cpp";
+  const question = proto[2];
 
-    const question = match[1];
+  const signature = `${lineNumber}:proto:${lang}:${question}`;
+  if (lastHandledSignature === signature) return;
+  lastHandledSignature = signature;
 
-    const signature = `${lineNumber}:${question}`;
-    if (lastHandledSignature === signature) return;
+  sidebar.postMessage({ type: "assistantLoading", question: `proto ${lang}: ${question}` });
 
-    lastHandledSignature = signature;
+  const fullContext = doc.getText();
 
-    // show loading
-    sidebar.postMessage({ type: "assistantLoading", question });
+  const prompt =
+    lang === "python"
+      ? `You are a concise research assistant. Using the CONTEXT below, write a minimal runnable Python prototype to test the idea.
+Return ONLY one fenced code block: \`\`\`python ...\`\`\`.
 
-    // ensure loading is visible at least 300ms
-    const minDelayMs = 300;
-    const t0 = Date.now();
+CONTEXT:
+${fullContext}
 
-    const answer = await callLLM(question);
+TASK:
+${question}`
+      : `You are a concise research assistant. Using the CONTEXT below, write a minimal C++17 prototype split into TWO fenced code blocks in this order:
+1) \`\`\`hpp ...\`\`\`
+2) \`\`\`cpp ...\`\`\`
+Return ONLY those two code blocks.
 
-const isImmediateError =
-  answer.startsWith("OpenAI API key not set.") ||
-  answer.startsWith("OpenAI error:") ||
-  answer.startsWith("Gemini API key not set.") ||
-  answer.startsWith("Gemini error:");
+CONTEXT:
+${fullContext}
 
-if (!isImmediateError) {
-  const elapsed = Date.now() - t0;
-  if (elapsed < minDelayMs) await new Promise((r) => setTimeout(r, minDelayMs - elapsed));
+TASK:
+${question}`;
+
+  const answer = await callLLM(prompt);
+
+  const cfg = vscode.workspace.getConfiguration("researchAssistant");
+  const allowWrite = cfg.get<boolean>("protoWriteFiles", false);
+
+  let fileNote =
+    "File writing is disabled. Enable: researchAssistant.protoWriteFiles (workspace) to write generated files.";
+  if (allowWrite) {
+    fileNote = await createPrototypeFiles(question, lang, answer);
+  }
+
+  sidebar.postMessage({
+    type: "assistantResponse",
+    question: `proto ${lang}: ${question}`,
+    answer: `${answer}\n\n---\n${fileNote}`
+  });
+  return;
 }
 
+  // --- NORMAL Q TRIGGER ---
+  const match = text.match(ASSISTANT_TRIGGER);
+  if (!match) return;
+
+  const question = match[1];
+  const signature = `${lineNumber}:${question}`;
+  if (lastHandledSignature === signature) return;
+  lastHandledSignature = signature;
+
+  sidebar.postMessage({ type: "assistantLoading", question });
+
+  const prompt = buildContextPrompt(doc, lineNumber, question);
+const answer = await callLLM(prompt);
 showAssistantResponse(question, answer);
-    }
+
+}
   
 
   async function refreshAll() {
@@ -342,8 +383,152 @@ showAssistantResponse(question, answer);
       }
     )
   );
+
+  context.subscriptions.push(
+  vscode.commands.registerCommand("researchAssistant.toggleProtoWrite", async () => {
+    const cfg = vscode.workspace.getConfiguration("researchAssistant");
+    const current = cfg.get<boolean>("protoWriteFiles", false);
+    await cfg.update("protoWriteFiles", !current, vscode.ConfigurationTarget.Workspace);
+    vscode.window.showInformationMessage(
+      `Research Assistant proto file writing: ${!current ? "enabled" : "disabled"} (workspace)`
+    );
+  })
+);
+}
+
+function buildContextPrompt(doc: vscode.TextDocument, lineNumber: number, userQuestion: string): string {
+  // Keep it bounded to avoid huge files -> token blowups.
+  // Strategy: take a window around the trigger line + include the line itself.
+  const windowLines = 80;
+
+  const start = Math.max(0, lineNumber - windowLines);
+  const end = Math.min(doc.lineCount - 1, lineNumber + windowLines);
+
+  const snippetLines: string[] = [];
+  for (let i = start; i <= end; i++) {
+    snippetLines.push(doc.lineAt(i).text);
+  }
+
+  const snippet = snippetLines.join("\n");
+  const title = doc.fileName.split(/[\\/]/).pop() ?? doc.fileName;
+
+  return [
+    `You are a concise research brainstorming assistant.`,
+    `Answer the question briefly and concretely.`,
+    ``,
+    `FILE: ${title}`,
+    `CONTEXT (lines ${start + 1}-${end + 1}):`,
+    snippet,
+    ``,
+    `QUESTION: ${userQuestion}`
+  ].join("\n");
+}
+  function safeSlug(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 40);
+}
+
+function workspaceRoot(): vscode.Uri | null {
+  const ws = vscode.workspace.workspaceFolders?.[0];
+  return ws?.uri ?? null;
+}
+
+async function writeFile(uri: vscode.Uri, content: string) {
+  const enc = new TextEncoder();
+  await vscode.workspace.fs.writeFile(uri, enc.encode(content));
+}
+
+async function openFile(uri: vscode.Uri) {
+  const doc = await vscode.workspace.openTextDocument(uri);
+  await vscode.window.showTextDocument(doc, { preview: false });
+}
+
+function extractFencedBlock(answer: string, lang: "python" | "cpp"): string | null {
+  const fence = lang === "python" ? "python" : "cpp";
+  const re = new RegExp("```" + fence + "\\s*([\\s\\S]*?)```", "i");
+  const m = answer.match(re);
+  if (m && m[1]) return m[1].trim();
+
+  // fallback: any fenced block
+  const any = answer.match(/```[a-z]*\s*([\s\S]*?)```/i);
+  if (any && any[1]) return any[1].trim();
+
+  return null;
+}
+
+function extractHeaderBlock(answer: string): string | null {
+  const m = answer.match(/```hpp\s*([\s\S]*?)```/i);
+  if (m && m[1]) return m[1].trim();
+  const alt = answer.match(/```h\s*([\s\S]*?)```/i);
+  if (alt && alt[1]) return alt[1].trim();
+  return null;
+}
+
+
+
+async function createPrototypeFiles(
+  question: string,
+  lang: "python" | "cpp",
+  answer: string
+): Promise<string> {
+  const root = workspaceRoot();
+  if (!root) return "No workspace folder open. Open a folder first.";
+
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const slug = safeSlug(question);
+
+  if (lang === "python") {
+    const code = extractFencedBlock(answer, "python") ?? answer.trim();
+    const rel = `prototypes/prototype_${stamp}_${slug}.py`;
+    const uri = vscode.Uri.joinPath(root, rel);
+
+    // ensure folder exists
+    await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(root, "prototypes"));
+
+    await writeFile(uri, code.endsWith("\n") ? code : code + "\n");
+    await openFile(uri);
+
+    return `Wrote Python prototype to ${rel}`;
+  }
+
+  // C++: create .cpp + .hpp
+  const cppCode = extractFencedBlock(answer, "cpp");
+  const hppCode = extractHeaderBlock(answer);
+
+  // If model returned only one block, put it into .cpp and create a minimal header.
+  const finalCpp =
+    (cppCode ?? answer.trim()) +
+    (answer.endsWith("\n") ? "" : "\n");
+
+  const finalHpp =
+    (hppCode ??
+      `#pragma once\n\n// TODO: move declarations here if needed.\n`) +
+    (hppCode?.endsWith("\n") ? "" : "\n");
+
+  const base = `prototype_${stamp}_${slug}`;
+  const relDir = `prototypes/${base}`;
+  await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(root, relDir));
+
+  const cppRel = `${relDir}/${base}.cpp`;
+  const hppRel = `${relDir}/${base}.hpp`;
+
+  const cppUri = vscode.Uri.joinPath(root, cppRel);
+  const hppUri = vscode.Uri.joinPath(root, hppRel);
+
+  await writeFile(hppUri, finalHpp);
+  await writeFile(cppUri, finalCpp);
+
+  await openFile(hppUri);
+  await openFile(cppUri);
+
+  return `Wrote C++ prototype to ${cppRel} and ${hppRel}`;
+}
   function showAssistantResponse(question: string, answer: string) {
-    sidebar.postMessage({ type: "assistantResponse", question, answer });
+    // sidebarInstance will be set during activate
+    sidebarInstance?.postMessage({ type: "assistantResponse", question, answer });
   }
 
   async function callLLM(question: string): Promise<string> {
@@ -357,7 +542,7 @@ showAssistantResponse(question, answer);
 }
 
 async function callOpenAI(question: string): Promise<string> {
-  const apiKey = await context.secrets.get(OPENAI_KEY_SECRET);
+  const apiKey = await extensionContext?.secrets.get(OPENAI_KEY_SECRET);
   if (!apiKey) return "OpenAI API key not set. Run: Research Assistant: Set OpenAI API Key";
 
   const model = vscode.workspace.getConfiguration("researchAssistant").get<string>("openaiModel", "gpt-4o-mini");
@@ -388,7 +573,7 @@ async function callOpenAI(question: string): Promise<string> {
 }
 
 async function callGemini(question: string): Promise<string> {
-  const apiKey = await context.secrets.get(GEMINI_KEY_SECRET);
+  const apiKey = await extensionContext?.secrets.get(GEMINI_KEY_SECRET);
   if (!apiKey) return "Gemini API key not set. Run: Research Assistant: Set Gemini API Key";
 
   const model = vscode.workspace.getConfiguration("researchAssistant").get<string>("geminiModel", "gemini-2.5-flash");
@@ -424,9 +609,5 @@ async function callGemini(question: string): Promise<string> {
 
   return text ?? "No response.";
 }
-}
-
-
-
 
 export function deactivate() {}

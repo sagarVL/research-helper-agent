@@ -50,7 +50,11 @@
       {
         "command": "researchAssistant.selectProvider",
         "title": "Research Assistant: Select LLM Provider"
-      }
+      },
+      {
+  "command": "researchAssistant.toggleProtoWrite",
+  "title": "Research Assistant: Toggle Proto File Writing"
+}
     ],
     "languages": [
       {
@@ -133,6 +137,11 @@
           "type": "string",
           "default": "gemini-2.5-flash",
           "description": "Gemini model for @assistant Q&A (e.g., gemini-2.5-flash)."
+        },
+        "researchAssistant.protoWriteFiles": {
+          "type": "boolean",
+          "default": false,
+          "description": "When enabled, @assistant proto ... will write generated prototypes into the workspace."
         }
       }
     }
