@@ -4,7 +4,7 @@ import { detectClaims } from "../analysis/ClaimDetector";
 export class SidebarProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "researchAssistant.sidebarView";
   private view?: vscode.WebviewView;
-
+  private pending: any[] = [];
   constructor(private readonly context: vscode.ExtensionContext) {}
 
   resolveWebviewView(webviewView: vscode.WebviewView): void {
@@ -12,6 +12,11 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 
     webviewView.webview.options = { enableScripts: true };
     webviewView.webview.html = this.getHtml();
+
+    for (const m of this.pending) {
+      webviewView.webview.postMessage(m);
+    }
+    this.pending = [];
 
     webviewView.webview.onDidReceiveMessage(async (msg) => {
       if (msg?.type === "jump" && typeof msg?.line === "number") {
@@ -63,6 +68,14 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     });
   }
 
+  public postMessage(message: any) {
+    if (!this.view) {
+      this.pending.push(message);
+      return;
+    }
+    this.view.webview.postMessage(message); 
+  }
+
   private getHtml(): string {
     return `<!doctype html>
 <html>
@@ -78,12 +91,21 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     .pill { display:inline-block; padding: 2px 8px; border-radius: 999px; border:1px solid rgba(127,127,127,0.35); font-size:12px; opacity:0.85; }
     .msg { margin-top: 6px; }
     .line { margin-top: 8px; font-size: 12px; opacity:0.8; }
+    .assistantBox { border: 1px solid rgba(127,127,127,0.35); border-radius: 12px; padding: 10px; margin: 10px 0 14px; }
+    .assistantTitle { font-weight: 600; margin-bottom: 6px; }
+    .assistantQ { opacity: 0.9; margin: 6px 0; }
+    .assistantA { opacity: 0.95; margin: 6px 0; white-space: pre-wrap; }
+    .thinking { font-style: italic; opacity: 0.8; }
   </style>
 </head>
 <body>
   <div class="row">
     <div><strong>Research Assistant</strong></div>
     <button id="analyze">Analyze visible</button>
+  </div>
+    <div class="assistantBox">
+    <div class="assistantTitle">Q&A</div>
+    <div id="assistant-output" class="meta">Type <code>@assistant ... ?</code> in a Markdown file.</div>
   </div>
   <div class="meta" id="meta">—</div>
   <div id="list"></div>
@@ -92,13 +114,27 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     const vscode = acquireVsCodeApi();
     const metaEl = document.getElementById('meta');
     const listEl = document.getElementById('list');
-
+    const outEl = document.getElementById('assistant-output');
     document.getElementById('analyze').addEventListener('click', () => {
       vscode.postMessage({ type: 'analyze' });
     });
 
     window.addEventListener('message', (event) => {
       const msg = event.data;
+      if (msg.type === 'assistantLoading') {
+        outEl.innerHTML =
+          '<div class="assistantQ"><strong>Question:</strong> ' + escapeHtml(msg.question || '') + '</div>' +
+          '<div class="thinking">Thinking...</div>';
+        return;
+      }
+
+      if (msg.type === 'assistantResponse') {
+        outEl.innerHTML =
+          '<div class="assistantQ"><strong>Question:</strong> ' + escapeHtml(msg.question || '') + '</div>' +
+          '<div class="assistantA"><strong>Answer:</strong> ' + escapeHtml(msg.answer || '') + '</div>';
+        return;
+      }
+
       if (msg.type !== 'data') return;
 
       if (msg.note) metaEl.textContent = msg.note;

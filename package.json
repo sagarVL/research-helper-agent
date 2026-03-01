@@ -7,7 +7,9 @@
   "engines": {
     "vscode": "^1.85.0"
   },
-  "categories": ["Other"],
+  "categories": [
+    "Other"
+  ],
   "activationEvents": [
     "onView:researchAssistant.sidebarView",
     "onCommand:researchAssistant.analyzeVisible",
@@ -35,13 +37,21 @@
       {
         "command": "researchAssistant.rewriteHedged",
         "title": "Research Assistant: Rewrite more cautiously"
-    }
+      }
     ],
     "languages": [
-      { "id": "markdown" },
-      { "id": "latex" },
-      { "id": "python" },
-      { "id": "cpp" }
+      {
+        "id": "markdown"
+      },
+      {
+        "id": "latex"
+      },
+      {
+        "id": "python"
+      },
+      {
+        "id": "cpp"
+      }
     ],
     "codeActions": [
       {
@@ -60,14 +70,14 @@
       ]
     },
     "views": {
-  "researchAssistant": [
-    {
-      "type": "webview",
-      "id": "researchAssistant.sidebarView",
-      "name": "Suggestions"
-    }
-  ]
-},
+      "researchAssistant": [
+        {
+          "type": "webview",
+          "id": "researchAssistant.sidebarView",
+          "name": "Suggestions"
+        }
+      ]
+    },
     "configuration": {
       "title": "Research Assistant",
       "properties": {
@@ -78,13 +88,21 @@
         },
         "researchAssistant.analysisMode": {
           "type": "string",
-          "enum": ["visibleOnly", "fullDocument"],
+          "enum": [
+            "visibleOnly",
+            "fullDocument"
+          ],
           "default": "visibleOnly",
           "description": "What part of the document to analyze."
         },
         "researchAssistant.domain": {
           "type": "string",
-          "enum": ["robotics", "ai", "pharma", "general"],
+          "enum": [
+            "robotics",
+            "ai",
+            "pharma",
+            "general"
+          ],
           "default": "robotics",
           "description": "Domain preset for the analyzer."
         }

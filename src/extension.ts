@@ -4,6 +4,10 @@ import { DiagnosticsManager } from "./diagnostics/DiagnosticsManager";
 import { detectClaims } from "./analysis/ClaimDetector";
 import { ResearchCodeActionProvider } from "./codeActions/ResearchCodeActionProvider";
 
+const ASSISTANT_TRIGGER = /^@assistant\s+(.+\?)\s*$/i;
+let lastHandledSignature: string | null = null;
+let debounceTimer: NodeJS.Timeout | null = null;
+
 class CiteCodeActionProvider implements vscode.CodeActionProvider {
   provideCodeActions(
     document: vscode.TextDocument,
@@ -72,7 +76,7 @@ export function activate(context: vscode.ExtensionContext) {
       providedCodeActionKinds: [vscode.CodeActionKind.QuickFix]
     }
   )
-);
+  );
 
   // Register the sidebar webview
   context.subscriptions.push(
@@ -87,6 +91,62 @@ export function activate(context: vscode.ExtensionContext) {
       { providedCodeActionKinds: ResearchCodeActionProvider.providedCodeActionKinds }
     )
   );
+
+  context.subscriptions.push(
+      vscode.workspace.onDidChangeTextDocument((event) => {
+        const doc = event.document;
+
+        if (doc.languageId !== "markdown") return;
+        if (!event.contentChanges.length) return;
+
+        const change = event.contentChanges[0];
+        const line = doc.lineAt(change.range.end.line);
+        const text = line.text.trim();
+
+        if (debounceTimer) clearTimeout(debounceTimer);
+
+        debounceTimer = setTimeout(() => {
+          handleAssistantTrigger(doc, line.lineNumber, text);
+        }, 2000);
+      })
+    );
+
+  async function handleAssistantTrigger(
+  doc: vscode.TextDocument,
+  lineNumber: number,
+  text: string) {
+    const match = text.match(ASSISTANT_TRIGGER);
+    if (!match) return;
+
+    const question = match[1];
+
+    const signature = `${lineNumber}:${question}`;
+    if (lastHandledSignature === signature) return;
+
+    lastHandledSignature = signature;
+
+    // show loading
+    sidebar.postMessage({ type: "assistantLoading", question });
+
+    // ensure loading is visible at least 300ms
+    const minDelayMs = 300;
+    const t0 = Date.now();
+
+    const answer = await callLLM(question);
+
+    if (answer === "__MISSING_KEY__") {
+      showAssistantResponse(question, "Missing API key.");
+      return;
+    }
+
+    const elapsed = Date.now() - t0;
+    if (elapsed < minDelayMs) {
+      await new Promise((r) => setTimeout(r, minDelayMs - elapsed));
+    }
+
+    showAssistantResponse(question, answer);
+    }
+  
 
   async function refreshAll() {
     await sidebar.refresh();
@@ -225,6 +285,39 @@ export function activate(context: vscode.ExtensionContext) {
       }
     )
   );
+  function showAssistantResponse(question: string, answer: string) {
+    sidebar.postMessage({ type: "assistantResponse", question, answer });
+  }
+}
+
+
+async function callLLM(question: string): Promise<string> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return "Missing API key.";
+
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: "You are a concise research brainstorming assistant. Be brief."
+        },
+        {
+          role: "user",
+          content: question
+        }
+      ],
+      max_tokens: 200
+    })
+  });
+  const data = (await response.json()) as any;
+  return data?.choices?.[0]?.message?.content ?? "No response.";
 }
 
 export function deactivate() {}
