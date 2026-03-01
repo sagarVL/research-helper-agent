@@ -8,6 +8,8 @@ const ASSISTANT_TRIGGER = /^@assistant\s+(.+\?)\s*$/i;
 let lastHandledSignature: string | null = null;
 let debounceTimer: NodeJS.Timeout | null = null;
 
+
+
 class CiteCodeActionProvider implements vscode.CodeActionProvider {
   provideCodeActions(
     document: vscode.TextDocument,
@@ -61,6 +63,9 @@ class CiteCodeActionProvider implements vscode.CodeActionProvider {
   }
 }
 
+const OPENAI_KEY_SECRET = "researchAssistant.openaiApiKey";
+const GEMINI_KEY_SECRET = "researchAssistant.geminiApiKey";
+
 export function activate(context: vscode.ExtensionContext) {
   console.log("[Research Assistant] activated");
 
@@ -111,6 +116,57 @@ export function activate(context: vscode.ExtensionContext) {
       })
     );
 
+  context.subscriptions.push(
+  vscode.commands.registerCommand("researchAssistant.setOpenAIKey", async () => {
+    const key = await vscode.window.showInputBox({
+      prompt: "Paste your OpenAI API key",
+      password: true,
+      ignoreFocusOut: true,
+      placeHolder: "sk-...",
+      validateInput: (v) => (v.trim().length < 20 ? "Key looks too short." : null)
+    });
+
+    if (!key) return;
+
+    await context.secrets.store(OPENAI_KEY_SECRET, key.trim());
+    vscode.window.showInformationMessage("OpenAI API key saved securely for Research Assistant.");
+  })
+);
+
+context.subscriptions.push(
+  vscode.commands.registerCommand("researchAssistant.setGeminiKey", async () => {
+    const key = await vscode.window.showInputBox({
+      prompt: "Paste your Gemini API key (Google AI Studio)",
+      password: true,
+      ignoreFocusOut: true,
+      placeHolder: "...",
+      validateInput: (v) => (v.trim().length < 10 ? "Key looks too short." : null)
+    });
+
+    if (!key) return;
+
+    await context.secrets.store(GEMINI_KEY_SECRET, key.trim());
+    vscode.window.showInformationMessage("Gemini API key saved securely for Research Assistant.");
+  })
+);
+
+context.subscriptions.push(
+  vscode.commands.registerCommand("researchAssistant.selectProvider", async () => {
+    const pick = await vscode.window.showQuickPick(
+      [
+        { label: "openai", description: "Use OpenAI Chat Completions" },
+        { label: "gemini", description: "Use Google Gemini generateContent" }
+      ],
+      { placeHolder: "Select the LLM provider for @assistant Q&A" }
+    );
+    if (!pick) return;
+
+    const cfg = vscode.workspace.getConfiguration("researchAssistant");
+    await cfg.update("provider", pick.label, vscode.ConfigurationTarget.Workspace);
+    vscode.window.showInformationMessage(`Research Assistant provider set to: ${pick.label} (workspace)`);
+  })
+);
+
   async function handleAssistantTrigger(
   doc: vscode.TextDocument,
   lineNumber: number,
@@ -134,17 +190,18 @@ export function activate(context: vscode.ExtensionContext) {
 
     const answer = await callLLM(question);
 
-    if (answer === "__MISSING_KEY__") {
-      showAssistantResponse(question, "Missing API key.");
-      return;
-    }
+const isImmediateError =
+  answer.startsWith("OpenAI API key not set.") ||
+  answer.startsWith("OpenAI error:") ||
+  answer.startsWith("Gemini API key not set.") ||
+  answer.startsWith("Gemini error:");
 
-    const elapsed = Date.now() - t0;
-    if (elapsed < minDelayMs) {
-      await new Promise((r) => setTimeout(r, minDelayMs - elapsed));
-    }
+if (!isImmediateError) {
+  const elapsed = Date.now() - t0;
+  if (elapsed < minDelayMs) await new Promise((r) => setTimeout(r, minDelayMs - elapsed));
+}
 
-    showAssistantResponse(question, answer);
+showAssistantResponse(question, answer);
     }
   
 
@@ -288,12 +345,22 @@ export function activate(context: vscode.ExtensionContext) {
   function showAssistantResponse(question: string, answer: string) {
     sidebar.postMessage({ type: "assistantResponse", question, answer });
   }
+
+  async function callLLM(question: string): Promise<string> {
+  const cfg = vscode.workspace.getConfiguration("researchAssistant");
+  const provider = cfg.get<string>("provider", "openai");
+
+  if (provider === "gemini") {
+    return await callGemini(question);
+  }
+  return await callOpenAI(question);
 }
 
+async function callOpenAI(question: string): Promise<string> {
+  const apiKey = await context.secrets.get(OPENAI_KEY_SECRET);
+  if (!apiKey) return "OpenAI API key not set. Run: Research Assistant: Set OpenAI API Key";
 
-async function callLLM(question: string): Promise<string> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return "Missing API key.";
+  const model = vscode.workspace.getConfiguration("researchAssistant").get<string>("openaiModel", "gpt-4o-mini");
 
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -302,22 +369,64 @@ async function callLLM(question: string): Promise<string> {
       "Authorization": `Bearer ${apiKey}`
     },
     body: JSON.stringify({
-      model: "gpt-4o-mini",
+      model,
       messages: [
-        {
-          role: "system",
-          content: "You are a concise research brainstorming assistant. Be brief."
-        },
-        {
-          role: "user",
-          content: question
-        }
+        { role: "system", content: "You are a concise research brainstorming assistant. Be brief." },
+        { role: "user", content: question }
       ],
       max_tokens: 200
     })
   });
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => "");
+    return `OpenAI error: ${response.status} ${response.statusText}${errText ? ` — ${errText}` : ""}`;
+  }
+
   const data = (await response.json()) as any;
   return data?.choices?.[0]?.message?.content ?? "No response.";
 }
+
+async function callGemini(question: string): Promise<string> {
+  const apiKey = await context.secrets.get(GEMINI_KEY_SECRET);
+  if (!apiKey) return "Gemini API key not set. Run: Research Assistant: Set Gemini API Key";
+
+  const model = vscode.workspace.getConfiguration("researchAssistant").get<string>("geminiModel", "gemini-2.5-flash");
+
+  // Gemini REST endpoint (v1beta): models/{model}:generateContent
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": apiKey
+    },
+    body: JSON.stringify({
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: `Be brief.\n\n${question}` }]
+        }
+      ]
+    })
+  });
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => "");
+    return `Gemini error: ${response.status} ${response.statusText}${errText ? ` — ${errText}` : ""}`;
+  }
+
+  const data = (await response.json()) as any;
+  const text =
+    data?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text).filter(Boolean).join("") ??
+    data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+  return text ?? "No response.";
+}
+}
+
+
+
 
 export function deactivate() {}

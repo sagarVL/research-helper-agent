@@ -11,6 +11,7 @@
     "Other"
   ],
   "activationEvents": [
+    "onCommand:researchAssistant.setOpenAIKey",
     "onView:researchAssistant.sidebarView",
     "onCommand:researchAssistant.analyzeVisible",
     "onCommand:researchAssistant.toggleDiagnostics"
@@ -37,6 +38,18 @@
       {
         "command": "researchAssistant.rewriteHedged",
         "title": "Research Assistant: Rewrite more cautiously"
+      },
+      {
+        "command": "researchAssistant.setOpenAIKey",
+        "title": "Research Assistant: Set OpenAI API Key"
+      },
+      {
+        "command": "researchAssistant.setGeminiKey",
+        "title": "Research Assistant: Set Gemini API Key"
+      },
+      {
+        "command": "researchAssistant.selectProvider",
+        "title": "Research Assistant: Select LLM Provider"
       }
     ],
     "languages": [
@@ -100,11 +113,26 @@
           "enum": [
             "robotics",
             "ai",
-            "pharma",
             "general"
           ],
           "default": "robotics",
           "description": "Domain preset for the analyzer."
+        },
+        "researchAssistant.provider": {
+          "type": "string",
+          "default": "openai",
+          "enum": ["openai", "gemini"],
+          "description": "LLM provider for @assistant Q&A."
+        },
+        "researchAssistant.openaiModel": {
+          "type": "string",
+          "default": "gpt-4o-mini",
+          "description": "OpenAI model for @assistant Q&A."
+        },
+        "researchAssistant.geminiModel": {
+          "type": "string",
+          "default": "gemini-2.5-flash",
+          "description": "Gemini model for @assistant Q&A (e.g., gemini-2.5-flash)."
         }
       }
     }
