@@ -229,17 +229,31 @@ ${question}`;
 }
 
   // --- NORMAL Q TRIGGER ---
-  const match = text.match(ASSISTANT_TRIGGER);
-  if (!match) return;
+ // --- NORMAL Q TRIGGER ---
+const match = text.match(ASSISTANT_TRIGGER);
+if (!match) return;
 
-  const question = match[1];
-  const signature = `${lineNumber}:${question}`;
-  if (lastHandledSignature === signature) return;
-  lastHandledSignature = signature;
+const question = match[1];
+const signature = `${lineNumber}:${question}`;
+if (lastHandledSignature === signature) return;
+lastHandledSignature = signature;
 
-  sidebar.postMessage({ type: "assistantLoading", question });
+sidebarInstance?.postMessage({ type: "assistantLoading", question });
 
-  const prompt = buildContextPrompt(doc, lineNumber, question);
+// send full context
+const fullContext = doc.getText();
+
+const prompt = `
+You are a concise research brainstorming assistant.
+Answer briefly and concretely.
+
+CONTEXT:
+${fullContext}
+
+QUESTION:
+${question}
+`;
+
 const answer = await callLLM(prompt);
 showAssistantResponse(question, answer);
 
